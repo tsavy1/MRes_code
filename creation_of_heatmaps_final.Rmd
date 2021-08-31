@@ -1,0 +1,156 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library("pheatmap")
+library("RColorBrewer")
+library("dplyr")
+library(tidyverse)
+```
+
+
+```{r}
+
+counts <- read.csv("GSE139261_Brooks_inVivo_RAW_edited.csv", stringsAsFactors = FALSE, row.names = 1)
+samples <- read.table("samples_table.csv", sep=",", header=TRUE)
+### OUR LIST OF GENES FROM "White matter is a pro-diff. niche..." Dr Brooks Et Al.
+
+counts_enrichment <- dds@assays@data@listData$counts 
+counts_enrichment <- as.data.frame(counts_enrichment)
+counts_enrichment$rowsums <-rep(c(rowSums(counts_enrichment)))
+# total counts > 200
+counts_enrichment <- counts_enrichment %>%
+  filter(counts_enrichment$rowsums >= 200) %>% 
+  rownames_to_column("genes")
+# data frame with genes in a column
+counts_enrichment
+
+```
+```{r}
+# finding counts for receptors
+count <- read_csv("all_counts+LFC_data.csv") # this is the data from Dr Brooks Et Al.
+count
+
+# specific receptor families - FROM GUIDE TO PHARMACOLOGY WEBSITE ONLINE
+gpcr <- read.csv("GPCRTargets.csv")
+targets <- read.csv("targets_and_families.csv")
+```
+```{r}
+# some data cleansing
+
+gpcr$Target.name <- gsub("<i>","",as.character(gpcr$Target.name))
+gpcr$Target.name <- gsub("</i>","",as.character(gpcr$Target.name))
+gpcr$Target.name <- gsub("<sub>","",as.character(gpcr$Target.name))
+gpcr$Target.name <- gsub("</sub>","",as.character(gpcr$Target.name))
+gpcr
+targets$Target.name <- gsub("<i>","",as.character(targets$Target.name))
+targets$Target.name <- gsub("</i>","",as.character(targets$Target.name))
+targets$Target.name <- gsub("<sub>","",as.character(targets$Target.name))
+targets$Target.name <- gsub("</sub>","",as.character(targets$Target.name))
+targets
+```
+```{r}
+# receptors in counts data
+counts_enrichment
+# genes common to our counts data and the online database receptors
+
+interest <- counts_enrichment[counts_enrichment$genes %in% all_receptors_20_cutoff$HGNC.symbol,]
+interest
+rownames(interest) <- c() # removing rownames and adding genes as rownames
+write.csv(file = "receptors_of_interest.csv", interest)
+# making a data frame of the interesting receptors
+interest <- read.csv("receptors_of_interest.csv") 
+interest
+int_data <- count[count$ID %in% interest$genes,]
+int_data <- as.data.frame(int_data)
+int_data[grepl('LPAR1', int_data$ID),]
+
+# LPAR1 should be negative in CC v S
+```
+```{r}
+int_data
+int_data$HGNC.symbol <- int_data$ID
+```
+```{r}
+# ALL RECEPTORS
+common <- targets[targets$HGNC.symbol %in% counts_enrichment$genes,]
+common
+common[,c(1,3,4,9,11,12)]
+write.csv(common, "all_receptor_Targets_LucyData.csv")
+```
+```{r} 
+# receptors in counts data that are in DESeq analysis
+
+common <- read.csv("all_receptor_Targets_LucyData.csv")
+all_receptors_20_cutoff  <- common[c(1:331),]
+mygenes <- left_join(all_receptors_20_cutoff, int_data, by = "HGNC.symbol")
+mygenes
+mygenes1 <- mygenes[,c(2,3,4, 12,36, 37,38)]
+mygenes1 <- na.omit(mygenes1)
+mygenes1[grepl('LPAR1', mygenes1$HGNC.symbol),] # check again
+```
+
+```{r}
+sum(duplicated(mygenes1$HGNC.symbol))
+unique(mygenes1$Family.name)
+```
+
+
+```{r}
+mygenes1 <- mygenes1[-c(36),]
+rownames(mygenes1) <- c() # removing rownames and adding genes as rownames
+mygenes_adap <- mygenes1 %>% column_to_rownames("HGNC.symbol")
+mygenes_adap <- mygenes_adap %>% rename(WMvB = Ratio.CC.vs.B, GMvB = Ratio.ST.vs.B, WMvGM = Ratio.CC.vs.ST)
+mygenes_adap <- mygenes_adap[4:6]
+mygenes_adap
+#write.csv(mygenes_adap, "~/Documents/UCLMRes/Project/Lucy.RNAseq/receptor/heatmap_input.csv")
+```
+```{r}
+mygenes_adap_mat <- as.matrix(mygenes_adap)
+```
+
+
+```{r}
+# create non linear scale
+
+quantile_breaks <- function(xs, n = 10) {
+  breaks <- quantile(xs, probs = seq(0, 1, length.out = n))
+  breaks[!duplicated(breaks)]
+}
+custom_breaks <- quantile_breaks(mygenes_adap_mat, n = 14)
+print(custom_breaks)
+```
+
+```{r}
+library(pheatmap)
+pdf(file = "~/Documents/UCLMRes/Project/thesis_figures/scaled_receptor_heatmapofLFC.pdf", width = 5, height = 10)
+
+pheatmap(mygenes_adap, cluster_rows= FALSE, show_rownames=FALSE, treeheight_row  = FALSE,
+         cluster_cols=FALSE,scale = "none", legend = TRUE, cex =1.25, fontsize = 10,
+          color = colorRampPalette(rev(brewer.pal(n = 11, name = "RdYlBu")))(length(custom_breaks)),
+         main = "Heatmap of receptor LFC", breaks = custom_breaks)
+
+
+# breaks code will help with non-linear scale & colours
+```
+```{r}
+library(pheatmap)
+pdf(file = "~/Documents/UCLMRes/Project/thesis_figures/scrap_receptor_heatmapofLFC.pdf", width = 5, height = 50)
+
+pheatmap(mygenes_adap, cluster_rows= FALSE, show_rownames=TRUE, treeheight_row  = FALSE,
+         cluster_cols=FALSE,scale = "none", legend = TRUE, cex =1.25, fontsize = 10,
+          color = colorRampPalette(rev(brewer.pal(n = 11, name = "RdYlBu")))(length(custom_breaks)),
+         main = "Heatmap of receptor LFC", breaks = custom_breaks)
+```
+
+
+
+
+
+
+
+
+
+
