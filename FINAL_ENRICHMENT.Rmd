@@ -1,0 +1,249 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+res_sig_CCvB_1 <- read.csv("res_sig_CCvB_1.csv")
+res_sig_SvCC_1 <- read.csv("res_sig_SvCC_1.csv")
+res_sig_SvB_1 <- read.csv("res_sig_SvB_1.csv")
+```
+
+```{r}
+library(DESeq2)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+# subsetting the up/down genes from the original data.frame
+
+res_sig_CCvB_1_UP <- filter(res_sig_CCvB_1, log2FoldChange > 0)
+res_sig_SvB_1_UP <- filter(res_sig_SvB_1, log2FoldChange > 0)
+res_sig_SvCC_1_UP <- filter(res_sig_SvCC_1, log2FoldChange > 0)
+res_sig_CCvB_1_DOWN <- filter(res_sig_CCvB_1, log2FoldChange < 0)
+res_sig_SvB_1_DOWN <- filter(res_sig_SvB_1, log2FoldChange < 0)
+res_sig_SvCC_1_DOWN <- filter(res_sig_SvCC_1, log2FoldChange < 0)
+```
+
+```{r}
+library(gprofiler2)
+gostres <- gost(query = as.vector(res_sig_CCvB_1_UP$X), 
+                organism = "hsapiens", ordered_query = FALSE, 
+                significant = TRUE, exclude_iea = TRUE, 
+                measure_underrepresentation = FALSE, evcodes = TRUE, 
+                user_threshold = 0.05, correction_method = "fdr", 
+                domain_scope = "annotated", custom_bg = NULL, 
+                numeric_ns = "")
+
+
+CCvBgprofiler_1_UP <- gostres$result
+CCvBgprofiler_1_UP <- filter(CCvBgprofiler_1_UP, term_size >= 150)
+CCvBgprofiler_1_UP <- filter(CCvBgprofiler_1_UP, source == "KEGG")
+CCvBgprofiler_1_UP
+#CCvBgprofiler_1.5_UP <- CCvBgprofiler_1.5_UP[order(CCvBgprofiler_1.5_UP$p_value), -c(12:15)]
+``` 
+
+```{r}
+library(gprofiler2)
+gostres <- gost(query = as.vector(res_sig_CCvB_1_DOWN$X), 
+                organism = "hsapiens", ordered_query = FALSE, 
+                significant = TRUE, exclude_iea = TRUE, 
+                measure_underrepresentation = FALSE, evcodes = TRUE, 
+                user_threshold = 0.05, correction_method = "fdr", 
+                domain_scope = "annotated", custom_bg = NULL, 
+                numeric_ns = "")
+
+
+CCvBgprofiler_1_DOWN <- gostres$result
+CCvBgprofiler_1_DOWN <- filter(CCvBgprofiler_1_DOWN, term_size >=150)
+CCvBgprofiler_1_DOWN <- filter(CCvBgprofiler_1_DOWN, source == "KEGG")
+CCvBgprofiler_1_DOWN
+#CCvBgprofiler_1.5_UP <- CCvBgprofiler_1.5_UP[order(CCvBgprofiler_1.5_UP$p_value), -c(12:15)]
+``` 
+
+```{r}
+library(gprofiler2)
+gostres <- gost(query = as.vector(res_sig_SvCC_1_UP$X), 
+                organism = "hsapiens", ordered_query = FALSE, 
+                significant = TRUE, exclude_iea = TRUE, 
+                measure_underrepresentation = FALSE, evcodes = TRUE, 
+                user_threshold = 0.05, correction_method = "fdr", 
+                domain_scope = "annotated", custom_bg = NULL, 
+                numeric_ns = "")
+SvCCgprofiler_1_UP <- gostres$result
+SvCCgprofiler_1_UP <- filter(SvCCgprofiler_1_UP, term_size >= 150)
+SvCCgprofiler_1_UP <- filter(SvCCgprofiler_1_UP, source == "KEGG")
+SvCCgprofiler_1_UP
+```
+
+```{r}
+library(gprofiler2)
+gostres <- gost(query = as.vector(res_sig_SvCC_1_DOWN$X), 
+                organism = "hsapiens", ordered_query = FALSE, 
+                significant = TRUE, exclude_iea = TRUE, 
+                measure_underrepresentation = FALSE, evcodes = TRUE, 
+                user_threshold = 0.05, correction_method = "fdr", 
+                domain_scope = "annotated", custom_bg = NULL, 
+                numeric_ns = "")
+SvCCgprofiler_1_DOWN <- gostres$result
+SvCCgprofiler_1_DOWN <- filter(SvCCgprofiler_1_DOWN, term_size >= 150)
+SvCCgprofiler_1_DOWN <- filter(SvCCgprofiler_1_DOWN, source == "KEGG")
+SvCCgprofiler_1_DOWN
+```
+
+```{r}
+CCvBUP <- CCvBgprofiler_1_UP
+CCvBDOWN <- CCvBgprofiler_1_DOWN
+CCvBUP
+CCvBDOWN
+```
+
+```{r}
+UP_top10 <- filter(CCvBUP, source == "KEGG")
+UP_top10 <- UP_top10[order(UP_top10$p_value, decreasing = FALSE), ]
+UP_top10$regulation <- "up"
+head(UP_top10, 10)
+DOWN_top10 <- filter(CCvBDOWN, source == "KEGG")
+DOWN_top10 <- DOWN_top10[order(DOWN_top10$p_value, decreasing = FALSE), ]
+#DOWN_top10$regulation <- "down"
+#DOWN_top10 <- DOWN_top10 %>% select(p_value, term_name, source, regulation, intersection)
+#UP_top10 <- UP_top10 %>% select(p_value, term_name, source, regulation, intersection)
+#new <- rbind(DOWN_top10, UP_top10)
+#new
+```
+
+```{r}
+###################
+# for this bar chart, I've used scale_fill_manual to choose the colour scale
+library(gridExtra)
+ggplot(UP_top10, aes(x=reorder(term_name, -log10(p_value)), y=-log10(p_value), fill = regulation)) + xlab("KEGG term") + ylab("-log10(p value)") +
+  geom_bar(stat = "identity", position = "identity") + scale_fill_manual(values =c("red3")) +
+theme(text = element_text(size=30, angle = 0), axis.text.x = element_text(angle=0, hjust=1), legend.title = element_text(size=30), legend.text=element_text(size=30, angle = 0)) +
+       coord_flip() + ylim(0,5.5) + ggtitle("CC v B")  +
+   facet_grid(regulation~., scales = "free_y", space = "free_y") +  ggtitle("White matter v Bulk") + theme(strip.text.y = element_blank())
+ ggsave("~/Documents/UCLMRes/Project/thesis_figures/CCvB_barplot.pdf", width = 13, height = 5) 
+# other ways to manipulate the bar chart
+# facet_wrap , scales = "free"
+# change colours up = red 
+```
+
+
+```{r}
+SvCCUP <- SvCCgprofiler_1_UP
+SvCCDOWN <- SvCCgprofiler_1_DOWN
+```
+
+
+```{r}
+DOWN_top10 <- filter(SvCCDOWN, source == "KEGG")
+DOWN_top10 <- DOWN_top10[order(DOWN_top10$p_value, decreasing = FALSE), ]
+DOWN_top10$regulation <- "upregulated"
+#new <- rbind(DOWN_top10, UP_top10)
+#new
+DOWN_top10
+```
+```{r}
+##############
+# for this bar chart, I've used scale_fill_manual to choose the colour scale
+library(gridExtra)
+ggplot(DOWN_top10, aes(x=reorder(term_name, -log10(p_value)), y=-log10(p_value), fill = regulation)) + xlab("KEGG term") + ylab("-log10(p value)") +
+  geom_bar(stat = "identity", position = "identity") + scale_fill_manual(values =c("red3")) +
+theme(text = element_text(size=30, angle = 0), axis.text.x = element_text(angle=0, hjust=1), legend.title = element_text(size=30), legend.text=element_text(size=30, angle = 0)) +
+       coord_flip() + ylim(0,5.5) +
+  ggtitle("significantly differentially expressed genes in SvCC in GO:BP/KEGG databases") +
+  facet_grid(regulation~., scales = "free_y", space = "free_y") + ggtitle("White matter v Grey matter") + theme(strip.text.y = element_blank())  # + theme(plot.title = element_text(size = 6)) 
+ ggsave("~/Documents/UCLMRes/Project/thesis_figures/SvCC_barplot.pdf", width = 13, height = 5) 
+# other ways to manipulate the bar chart
+# facet_wrap , scales = "free"
+# change colours up = red 
+```
+
+
+```{r}
+library(VennDiagram)
+library(tidyverse)
+library(dplyr)
+# overlap of UP CCvB and DOWN SvCC
+venn <- list("upregulated in WM v GM" = res_sig_SvCC_1_DOWN$X, "upregulated in WM v B" = res_sig_CCvB_1_UP$X)
+overlap <- calculate.overlap(venn)
+str(overlap)
+venn.diagram(venn, filename = "~/Documents/UCLMRes/Project/thesis_figures/SvCCdownandCCvBupvenn1.tiff",  width = 3600, height = 3500, pointsize = 5, fill = c("purple", "green"), cex = 1.75, cat.cex = 1.75, cat.dist = c(0.005, -0.13), cat.pos = c(0.1, 0.15), lwd = 1, col = 0,  cat.fontfamily = "Arial", fontfamily = "Arial")
+#write.csv(overlap, "/Users/frozendwarf91/Documents/UCLMRes/Project/Lucy.RNAseq/DOWN_SvCC_UP_CCvB.csv", row.names = TRUE)
+# main = "upregulated genes in WM vs Bulk and Striatum",main.cex = 1.5
+# main.fontfamily = "Arial", main.fontface = "bold",
+```
+
+```{r}
+overlap$a3
+```
+
+```{r}
+library(gprofiler2)
+gostres <- gost(query = as.vector(overlap$a3), 
+                organism = "hsapiens", ordered_query = FALSE, 
+                significant = TRUE, exclude_iea = TRUE, 
+                measure_underrepresentation = FALSE, evcodes = TRUE, 
+                user_threshold = 0.05, correction_method = "fdr", 
+                domain_scope = "annotated", custom_bg = NULL, 
+                numeric_ns = "")
+
+aresult <- gostres$result
+aresult <- filter(aresult,term_size >= 150)
+aresult <- filter(aresult, source == "KEGG")
+aresult
+```
+```{r}
+aresult$regulation <- "upregulated"
+
+ggplot(aresult, aes(x=reorder(term_name, -log10(p_value)), y=-log10(p_value), fill = regulation)) + xlab("KEGG term") + ylab("-log10(p value)") +
+  geom_bar(stat = "identity", position = "identity") + scale_fill_manual(values =c("red3")) +
+theme(text = element_text(size=30, angle = 0), axis.text.x = element_text(angle=0, hjust=1), legend.title = element_text(size=30), legend.text=element_text(size=30, angle = 0)) +
+       coord_flip() + ylim(0,5.5) +
+  ggtitle("significantly differentially expressed genes in SvCC in GO:BP/KEGG databases") +
+  facet_grid(regulation~., scales = "free_y", space = "free_y") + ggtitle("White matter overlap") + theme(strip.text.y = element_blank())  # + theme(plot.title = element_text(size = 6)) 
+ ggsave("~/Documents/UCLMRes/Project/thesis_figures/CC_overlap_barplot.pdf", width = 13, height = 3)
+```
+
+
+```{r}
+#dt[dt$fct %in% vc,]
+all <- mydfCCvB[mydfCCvB$HGNC %in% overlap$a3,]
+overlap_genes <- all[c(1,3)]
+overlap_genes
+overlap_genes$HGNC <- mapIds(org.Hs.eg.db, overlap_genes$HGNC, 'ENTREZID', 'SYMBOL')
+overlap_genes
+```
+```{r}
+# collect kegg homo sapiens data online
+data(kegg.sets.hs)
+data(sigmet.idx.hs)
+kegg.sets.hs = kegg.sets.hs[sigmet.idx.hs]
+```
+```{r}
+# create a vector (list) of the log2FoldChange
+# add gene_id  names to the list
+foldchanges <- overlap_genes$log2FoldChange
+names(foldchanges) <- overlap_genes$HGNC
+head(foldchanges)
+```
+
+```{r}
+# same.dir = TRUE gives us separate lists for pathways that are upregulated versus pathways that are downregulated
+keggres = gage(foldchanges, gsets=kegg.sets.hs, same.dir=TRUE)
+#Look at both up (greater), down (less)
+lapply(keggres, head)
+keggres
+```
+```{r}
+# choose the KEGG IDs that are interesting to us
+keggresids <- c("hsa04151")
+
+# Define plotting function for applying later
+plot_pathway = function(pid) pathview(gene.data=foldchanges, pathway.id=pid, species="hsa", new.signature=FALSE)
+
+# sapply returns vector
+tmp = sapply(keggresids, function(pid) pathview(gene.data=foldchanges, pathway.id=pid, species="hsa",low = list(gene = "lightblue", cpd = "lightblue"), mid = list(gene = "gray", cpd
+= "gray"), high = list(gene = "red", cpd = "red")))
+```

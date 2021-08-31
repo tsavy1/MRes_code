@@ -1,0 +1,261 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+clean GSEA
+
+```{r}
+library("DESeq2")
+library("ggplot2")
+library(dplyr)
+library(tidyverse)
+```
+
+```{r}
+#head(de.all.dat.frame.WTC11.gene.annot)
+mydfCCvB <- read.csv("mymatrixCCvB")
+mydfSvB <- read.csv("mymatrixSvB")
+mydfSvCC <- read.csv("mymatrixSvCC")
+
+# creating df
+mydfCCvB <- mydfCCvB %>%
+  rename("HGNC" = "X") %>%  
+  drop_na()
+mydfCCvB
+mydfSvB <- mydfSvB %>%
+  rename("HGNC" = "X") %>% 
+  drop_na()
+mydfSvB
+mydfSvCC <- mydfSvCC %>%
+  rename("HGNC" = "X") %>% 
+  drop_na()
+mydfSvCC
+```
+
+
+
+```{r}
+mydfCCvB <- mydfCCvB %>%        # selecting certain columns, filtering out NA values 
+  dplyr::select(HGNC, stat) %>%   
+  dplyr::filter(HGNC != "") %>% 
+  dplyr::filter(!is.na(HGNC)) 
+mydfCCvB <- mydfCCvB[order(mydfCCvB$stat, decreasing = TRUE),]
+myCCvB <- tibble::deframe(mydfCCvB) # convert two-column data frames to a named vector or list, using the first column as name and the second column as value
+myCCvB <- na.omit(myCCvB)
+head(myCCvB)
+```
+
+```{r}
+mydfCCvB[grepl('TMEM100', mydfCCvB$HGNC),]
+```
+
+
+Call gene sets
+
+```{r}
+library(msigdbr)
+m_df = msigdbr(species = "Homo sapiens", category = "H")
+msigdbr_t2g = m_df %>% dplyr::distinct(gs_name, entrez_gene) %>% as.data.frame()
+
+library(GSA)
+pathways = fgsea::gmtPathways("h.all.v7.4.entrez.gmt.txt")
+```
+
+CCvB
+
+```{r}
+vector <- c(mydfCCvB$HGNC)
+```
+
+```{r}
+library(org.Hs.eg.db)
+hs <- org.Hs.eg.db
+new <- AnnotationDbi::select(hs, 
+       keys = vector,
+       columns = c("ENTREZID", "SYMBOL"),
+       keytype = "SYMBOL", multiVals = first)
+new <- new %>% rename("HGNC" = "SYMBOL")
+myCCvB <- left_join(new, mydfCCvB, by = "HGNC", all.x = TRUE)
+myCCvB_newdf <- myCCvB
+myCCvB$HGNC <- NULL
+myCCvB <- na.omit(myCCvB)
+myCCvB <- tibble::deframe(myCCvB)
+#myCCvB
+```
+
+
+
+```{r}
+library(clusterProfiler)
+gene <- names(myCCvB)
+# need to obtain gmt and gene sets
+
+#gmtfile <- system.file("extdata", "h.all.v7.4.entrez.gmt.txt", package="clusterProfiler")
+#hallmark_entrez <- read.gmt(gmtfile)
+CCvB_egmt <- enricher(gene, TERM2GENE=msigdbr_t2g)
+head(CCvB_egmt)
+CCvB_egmt2 <- GSEA(myCCvB, TERM2GENE=msigdbr_t2g, verbose=TRUE)
+head(CCvB_egmt2)
+```
+
+```{r}
+pdf(file = "~/Documents/UCLMRes/Project/thesis_figures/CCvB_dotplot.pdf", width = 15, height=12)
+require(DOSE)
+dotplot(CCvB_egmt2, showCategory=32, split=".sign", x = "NES", color = "p.adjust", title = "WM v Bulk", font.size = 25) + theme(plot.title = element_text(size=30), axis.text.y=element_text(size=30), axis.title.y=element_text(size=45, angle = 90),
+  axis.text.x=element_text(size=20), axis.title.x=element_text(size=20), legend.text =element_text(size=20), legend.title = element_text(size=20)) + ylab("Hallmark") + xlim(-3,2.2)
+```
+
+SvCC
+
+```{r}
+mydfSvCC <- mydfSvCC %>% 
+  dplyr::select(HGNC, stat) %>% 
+  dplyr::filter(HGNC != "") %>% 
+  dplyr::filter(!is.na(HGNC)) 
+#mydfSvCC <- mydfSvCC[order(mydfSvCC$stat, decreasing = TRUE),]
+mySvCC <- tibble::deframe(mydfSvCC) # convert two-column data frames to a named vector or list, using the first column as name and the second column as value
+mySvCC <- na.omit(mySvCC)
+head(mySvCC)
+```
+
+```{r}
+mydfSvCC[grepl('A1BG', mydfSvCC$HGNC),]
+```
+
+```{r}
+vector <- c(mydfSvCC$HGNC)
+```
+
+```{r}
+library(org.Hs.eg.db)
+hs <- org.Hs.eg.db
+new <- AnnotationDbi::select(hs, 
+       keys = vector,
+       columns = c("ENTREZID", "SYMBOL"),
+       keytype = "SYMBOL")
+new <- new %>% rename("HGNC" = "SYMBOL")
+mySvCC <- left_join(new, mydfSvCC, by = "HGNC", all.x = TRUE)
+mySvCC$HGNC <- NULL
+mySvCC <- na.omit(mySvCC)
+mySvCC <- tibble::deframe(mySvCC)
+```
+
+```{r}
+mySvCCz <- mySvCC[sapply(mySvCC, is.numeric)]*-1         # flip (+/-                    ) to CC v S
+mySvCCz <- sort(mySvCCz, decreasing = TRUE)
+head(mySvCCz)
+```
+
+```{r}
+# 93010 is B3GNT7
+
+mydfSvCC[grepl('B3GNT7', mydfSvCC$HGNC),]
+```
+
+```{r}
+library(clusterProfiler)
+gene <- names(mySvCCz)
+
+
+SvCC_egmt <- enricher(gene, TERM2GENE=msigdbr_t2g)
+head(SvCC_egmt)
+SvCC_egmt2 <- GSEA(mySvCCz, TERM2GENE=msigdbr_t2g, verbose=FALSE)
+head(SvCC_egmt2)
+```
+```{r}
+new <- as.data.frame(SvCC_egmt2)
+inflammatory <- new[grepl('TNF', new$Description),]
+vector <- inflammatory$core_enrichment
+vector1 <- gsub("/", " ", trimws(vector))
+vector1 <- as.data.frame(vector1)
+print(vector1)
+vector1 <- data.frame(new_row = unlist(strsplit(as.character(vector1$vector1), " ")))
+new <- AnnotationDbi::select(hs, 
+       keys = vector1$new_row,
+       columns = c("ENTREZID", "SYMBOL"),
+       keytype = "ENTREZID")
+new
+```
+```{r}
+mydfCCvB[grepl('PIK3', mydfCCvB$HGNC),]
+cool <- mymatrixCCvB %>% rownames_to_column()
+cool[grepl('PIK3', cool$rowname),]
+```
+
+```{r}
+new <- as.data.frame(SvCC_egmt2)
+inflammatory <- new[grepl('KRAS', new$Description),]
+vector <- inflammatory$core_enrichment
+vector1 <- gsub("/", " ", trimws(vector))
+vector1
+vector1 <- as.data.frame(vector1)
+vector1 <- data.frame(new_row = unlist(strsplit(as.character(vector1$vector1), " ")))
+new <- AnnotationDbi::select(hs, 
+       keys = vector1$new_row,
+       columns = c("ENTREZID", "SYMBOL"),
+       keytype = "ENTREZID")
+new
+```
+
+
+```{r}
+pdf(file = "~/Documents/UCLMRes/Project/thesis_figures/SvCC_dotplot.pdf", width = 15, height=12)
+require(DOSE)
+dotplot(SvCC_egmt2, showCategory=32, split=".sign", x = "NES", color = "p.adjust", title = "WM v GM", font.size = 25)  + theme(plot.title = element_text(size=30), axis.text.y=element_text(size=30),
+  axis.text.x=element_text(size=20), axis.title.x=element_text(size=20), legend.text =element_text(size=20), legend.title = element_text(size=20), axis.title.y = element_text(size = 0)) + ylab("Hallmark")  + xlim(-3,2.2) 
+```
+
+SvB
+```{r}
+mydfSvB <- mydfSvB %>% 
+  dplyr::select(HGNC, stat) %>% 
+  dplyr::filter(HGNC != "") %>% 
+  dplyr::filter(!is.na(HGNC)) 
+mydfSvB <- mydfSvB[order(mydfSvB$stat, decreasing = TRUE),]
+mySvB <- tibble::deframe(mydfSvB) # convert two-column data frames to a named vector or list, using the first column as name and the second column as value
+mySvB <- na.omit(mySvB)
+head(mySvB)
+```
+
+```{r}
+mydfSvB[grepl('SPARCL1', mydfSvB$HGNC),]
+```
+
+```{r}
+vector <- c(mydfSvB$HGNC)
+```
+
+```{r}
+library(org.Hs.eg.db)
+hs <- org.Hs.eg.db
+new <- AnnotationDbi::select(hs, 
+       keys = vector,
+       columns = c("ENTREZID", "SYMBOL"),
+       keytype = "SYMBOL")
+new <- new %>% rename("HGNC" = "SYMBOL")
+mySvB <- left_join(new, mydfSvB, by = "HGNC", all.x = TRUE)
+mySvB$HGNC <- NULL
+mySvB <- na.omit(mySvB)
+mySvB <- tibble::deframe(mySvB)
+```
+
+```{r}
+library(clusterProfiler)
+gene <- names(mySvB)
+
+SvB_egmt <- enricher(gene, TERM2GENE=msigdbr_t2g)
+head(SvB_egmt)
+SvB_egmt2 <- GSEA(mySvB, TERM2GENE=msigdbr_t2g, verbose=TRUE, by = "fgsea")
+head(SvB_egmt2)
+```
+
+```{r}
+#pdf(file = "~/Documents/UCLMRes/Project/thesis_figures/SvB_dotplot.pdf", width = 15, height=12)
+require(DOSE)
+dotplot(SvB_egmt2, showCategory=32, split=".sign", x = "NES", color = "p.adjust", title = "GM v Bulk", font.size = 25) + theme(plot.title = element_text(size=30), axis.text.y=element_text(size=30), 
+  axis.text.x=element_text(size=20), axis.title.x=element_text(size=20), legend.text =element_text(size=20), legend.title = element_text(size=20),axis.title.y = element_text(size = 0)) + ylab("Hallmark")  + xlim(-3,2.2)
+```
+
+
+

@@ -1,0 +1,154 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+DESeq prep file for matrices
+
+```{r}
+# bring Counts matrix and Samples table into environment
+# stringsAsFactors indicates whether strings in a data frame should be treated as factor variables or as just plain strings
+# Each row should have a unique row name
+counts <- read.csv("GSE139261_Brooks_inVivo_RAW_edited.csv", stringsAsFactors = FALSE, row.names = 1)
+samples <- read.table("samples_table.csv", sep=",", header=TRUE)
+```
+```{r}
+counts
+samples
+```
+```{r}
+# calling important libraries for use
+library("DESeq2")
+library("ggplot2")
+library("dplyr")
+```
+```{r echo=TRUE}
+# select the columns in the Samples and Counts that are CC and B
+samples.b.vs.cc <- samples[c(1,3,7,2,4,8),]
+counts.b.vs.cc <- counts[, c(1,3,7,2,4,8)]
+ # cc/bulk
+```
+```{r echo=TRUE}
+# create a Deseq specific matrix that incorporates the Counts and Samples, to then be passed through DESeq analysis
+# we specify the counts data (countData), the samples (colData) and finally the condition that is producing observable change
+colData <- samples.b.vs.cc[,c("Short.name","Condition", "Mouse", "Count")]
+row.names(colData) <- colData$Count
+colData
+dds <- DESeqDataSetFromMatrix(countData = counts.b.vs.cc,
+                              colData = colData,
+                              design = ~ Condition)
+```
+```{r echo=TRUE}
+# in the dds object, we have columns as samples and rows as genes, with counts data within 
+# we keep only the counts above a certain value and then run DESeq analysis
+keep <- rowSums(counts(dds)) >= 10
+dds <- dds[keep,]
+dds$Condition <- factor(dds$Condition, levels = c("Bulk","CC"))
+dds <- DESeq(dds)
+res <- results(dds)
+```
+```{r}
+mymatrixCCvB <- res[2-7]
+mymatrixCCvB <- as.data.frame(mymatrixCCvB)
+write.csv(mymatrixCCvB, "~/Documents/UCLMRes/Project/Lucy.RNAseq/mymatrixCCvB")
+```
+
+```{r}
+res_df <- as.data.frame(res)
+res_df <- subset(res_df, !is.na(pvalue))
+res_df <- subset(res_df, !is.na(padj))
+which(is.na(res_df))
+
+res_sig_1LFC_CCvB <- filter(res_sig, log2FoldChange >= 1.25 | log2FoldChange <= -1.25)
+nrow(res_sig_1LFC_CCvB) # how many genes do we have?
+write.csv(res_sig_1LFC_CCvB, "/Users/frozendwarf91/Documents/UCLMRes/Project/Lucy.RNAseq/res_sig_CCvB_1.csv", row.names = TRUE)
+```
+
+
+
+SvCC
+```{r}
+samples.s.vs.cc <- samples[c(2,4,8,5,6,9),]
+counts.s.vs.cc <- counts[, c(2,4,8,5,6,9)]
+# SvCC
+```
+```{r}
+colData <- samples.s.vs.cc[,c("Short.name","Condition", "Mouse", "Count")]
+row.names(colData) <- colData$Count
+colData
+dds <- DESeqDataSetFromMatrix(countData = counts.s.vs.cc,
+                              colData = colData,
+                              design = ~ Condition)
+dds
+```
+```{r}
+keep <- rowSums(counts(dds)) >= 10
+dds <- dds[keep,]
+dds$Condition <- factor(dds$Condition, levels = c("CC","Striatum"))
+dds <- DESeq(dds)
+res <- results(dds)
+```
+
+```{r}
+mymatrixSvCC <- res[2-7]
+mymatrixSvCC <- as.data.frame(mymatrixSvCC)
+mymatrixSvCC
+write.csv(mymatrixSvCC, "~/Documents/UCLMRes/Project/Lucy.RNAseq/mymatrixSvCC")
+mydfSvCC <- read.csv("~/Documents/UCLMRes/Project/Lucy.RNAseq/mymatrixSvCC")
+mydfSvCC
+```
+
+```{r}
+res_df <- as.data.frame(res)
+res_df <- subset(res_df, !is.na(pvalue))
+res_df <- subset(res_df, !is.na(padj))
+which(is.na(res_df))
+
+res_sig <- filter(res_df, padj <= 0.05 & pvalue <= 0.05)
+
+res_sig_1LFC_SvCC <- filter(res_sig, log2FoldChange >= 1.25 | log2FoldChange <= -1.25)
+nrow(res_sig_1LFC_SvCC) # how many genes do we have?
+write.csv(res_sig_1LFC_SvCC, "/Users/frozendwarf91/Documents/UCLMRes/Project/Lucy.RNAseq/res_sig_SvCC_1.csv", row.names = TRUE)
+```
+
+
+SvB
+```{r}
+samples.b.vs.s <- samples[c(1,3,7,5,6,9),]
+counts.b.vs.s <- counts[, c(1,3,7,5,6,9)]
+# SvCC
+```
+```{r}
+colData <- samples.b.vs.s[,c("Short.name","Condition", "Mouse", "Count")]
+row.names(colData) <- colData$Count
+colData
+dds <- DESeqDataSetFromMatrix(countData = counts.b.vs.s,
+                              colData = colData,
+                              design = ~ Condition)
+dds
+```
+```{r}
+keep <- rowSums(counts(dds)) >= 10
+dds <- dds[keep,]
+dds$Condition <- factor(dds$Condition, levels = c("Bulk","Striatum"))
+dds <- DESeq(dds)
+res <- results(dds)
+```
+```{r}
+mymatrixSvB<- res[2-7]
+mymatrixSvB <- as.data.frame(mymatrixSvB)
+write.csv(mymatrixSvB, "~/Documents/UCLMRes/Project/Lucy.RNAseq/mymatrixSvB")
+```
+```{r}
+res_df <- as.data.frame(res)
+res_df <- subset(res_df, !is.na(pvalue))
+res_df <- subset(res_df, !is.na(padj))
+which(is.na(res_df))
+
+res_sig <- filter(res_df, padj <= 0.05 & pvalue <= 0.05)
+
+res_sig_1LFC_SvB <- filter(res_sig, log2FoldChange >= 1.25 | log2FoldChange <= -1.25)
+nrow(res_sig_1LFC_SvB) # how many genes do we have?
+write.csv(res_sig_1LFC_SvB, "/Users/frozendwarf91/Documents/UCLMRes/Project/Lucy.RNAseq/res_sig_SvB_1.csv", row.names = TRUE)
+```
+
